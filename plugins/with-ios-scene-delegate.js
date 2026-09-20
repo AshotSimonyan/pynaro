@@ -64,15 +64,12 @@ const REMOVAL_NOTE =
   "    // under the UIScene life cycle the window must be created from the\n" +
   "    // UIWindowScene. See plugins/with-ios-scene-delegate.js.\n";
 
-const fail = (message) =>
-  new Error(`with-ios-scene-delegate: ${message}`);
+const fail = (message) => new Error(`with-ios-scene-delegate: ${message}`);
 
 const withSceneAppDelegate = (config) =>
   withAppDelegate(config, (cfg) => {
     if (cfg.modResults.language !== "swift") {
-      throw fail(
-        `expected a Swift AppDelegate, got "${cfg.modResults.language}"`,
-      );
+      throw fail(`expected a Swift AppDelegate, got "${cfg.modResults.language}"`);
     }
 
     let contents = cfg.modResults.contents;

@@ -6,6 +6,11 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
+    // TypeScript 6 does not pull in `node_modules/@types` automatically, so the
+    // global packages have to be named. `node` is here for the test suite's
+    // `fs` and `__dirname`; app code still reads config through expo-constants
+    // and never `process.env` at runtime (§10 of docs/architecture.md).
+    "types": ["node", "jest"],
     "paths": {
       "@/*": ["./src/*"]
     }

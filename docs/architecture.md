@@ -216,49 +216,75 @@ stateDiagram-v2
     [*] --> requested
     requested --> accepted
     requested --> cancelled
+    requested --> expired
     accepted --> en_route
     en_route --> arrived
     arrived --> estimate_sent
+    arrived --> completed
     estimate_sent --> approved
-    estimate_sent --> cancelled
+    estimate_sent --> arrived
     approved --> in_progress
     in_progress --> completed
     completed --> paid
     paid --> [*]
     cancelled --> [*]
+    expired --> [*]
 ```
 
-| From          | Actor                           | Intent endpoint                    | To            |
-| ------------- | ------------------------------- | ---------------------------------- | ------------- |
-| requested     | technician or dispatcher        | `POST /jobs/{id}/accept`           | accepted      |
-| requested     | customer, or the response timer | `POST /jobs/{id}/cancel`           | cancelled     |
-| accepted      | technician                      | `POST /jobs/{id}/depart`           | en_route      |
-| en_route      | technician                      | `POST /jobs/{id}/arrive`           | arrived       |
-| arrived       | technician                      | `POST /jobs/{id}/estimate`         | estimate_sent |
-| estimate_sent | customer                        | `POST /jobs/{id}/estimate/approve` | approved      |
-| estimate_sent | customer                        | `POST /jobs/{id}/estimate/decline` | cancelled     |
-| approved      | technician                      | `POST /jobs/{id}/start`            | in_progress   |
-| in_progress   | technician                      | `POST /jobs/{id}/complete`         | completed     |
-| completed     | customer                        | `POST /jobs/{id}/pay`              | paid          |
+| From          | Actor                    | Intent endpoint                       | To            |
+| ------------- | ------------------------ | ------------------------------------- | ------------- |
+| requested     | technician or dispatcher | `POST /jobs/{id}/accept`              | accepted      |
+| requested     | customer                 | `POST /jobs/{id}/cancel`              | cancelled     |
+| requested     | the response timer       | `expire` — server-initiated, no route | expired       |
+| accepted      | technician               | `POST /jobs/{id}/depart`              | en_route      |
+| en_route      | technician               | `POST /jobs/{id}/arrive`              | arrived       |
+| arrived       | technician               | `POST /jobs/{id}/estimate`            | estimate_sent |
+| arrived       | technician               | `POST /jobs/{id}/complete`            | completed     |
+| estimate_sent | customer                 | `POST /jobs/{id}/estimate/approve`    | approved      |
+| estimate_sent | customer                 | `POST /jobs/{id}/estimate/decline`    | arrived       |
+| approved      | technician               | `POST /jobs/{id}/start`               | in_progress   |
+| in_progress   | technician               | `POST /jobs/{id}/complete`            | completed     |
+| completed     | customer                 | `POST /jobs/{id}/pay`                 | paid          |
 
 The prototype instead accepts `{ action: "update_job", status: "paid" }` from
 anyone. That is fine for a demo and unacceptable in production: a customer
 could mark their own job paid without a charge.
 
-**In the app.** `src/domain/jobTransitions.ts` holds the same table and answers
-one question: given this status and this role, which action does the screen
-offer? It drives affordances only. The server stays the authority.
+**In the app.** `src/domain/job-transitions.ts` holds the same table and
+answers one question: given this status and this role, which action does the
+screen offer? It drives affordances only. The server stays the authority.
+`src/domain/job-transitions.test.ts` parses the table above and fails if the
+two disagree, so this section and that file cannot drift apart silently.
 
 **Conflicts are expected,** not exceptional. The backend answers `409` with the
 job's current state; the client replaces its cache with that state, re-renders
 and tells the user the job moved on.
 
-**Polling stops** at `paid` and `cancelled`.
+**Polling stops** at `paid`, `cancelled` and `expired`.
 
 **The response window is a server concern.** The prototype counts down in the
 UI and does nothing when it hits zero. In production the backend expires an
-unanswered request and emits the transition; the app renders `expiresAt` from
-the job payload.
+unanswered request into `expired` and emits the transition; the app renders
+`expiresAt` from the job payload and never decides the deadline has passed.
+
+**`expired` is distinct from `cancelled`** rather than folded into it. Nobody
+chose it, so the two need to read differently to the customer, count
+differently against a technician's response rate, and be separable in
+reporting. It is terminal and reachable only from `requested`. It has no
+endpoint: the backend is the only actor that can cause it, so no client — app
+or dashboard — can.
+
+**A declined estimate returns to `arrived`,** not to a terminal state. The
+technician is still standing in the customer's kitchen; the useful next move is
+a revised estimate, not a dead job. This makes `arrived → estimate_sent →
+arrived` the one cycle in the machine, so a screen rendering the timeline must
+expect a state to recur.
+
+**A visit can complete from `arrived`** without an estimate ever being
+approved — the diagnosis was the whole job, or the customer declined the work
+and sent the technician away. The technician sends `complete` from `arrived`
+and only the service-call fee is owed. No separate pricing rule is needed: the
+total in §9 is estimate plus service call plus tip, and the estimate is zero.
 
 ## 7. Technician live location
 
@@ -404,8 +430,8 @@ and the design system are built.
 | 5   | One account per role, or one account holding both          | 2    | separate accounts for v1                 | route gates, sign-up       |
 | 6   | Role in the token claim or from `/me`                      | 2    | claim                                    | cold start, route gates    |
 | 7   | Mutations return the full job; `409` carries current state | 4, 6 | yes                                      | caching, conflict handling |
-| 8   | Who expires the response window, and into which state      | 6    | backend, into `expired`                  | request flow, timers       |
-| 9   | Declining an estimate: cancel, or back to `arrived`        | 6    | back to `arrived`                        | job screen                 |
+| 8   | Who expires the response window, and into which state      | 6    | **settled**: backend, into `expired`     | request flow, timers       |
+| 9   | Declining an estimate: cancel, or back to `arrived`        | 6    | **settled**: back to `arrived`           | job screen                 |
 | 10  | Catalog served by the API, not compiled into the app       | 3    | API, with ETag                           | home, request flow         |
 | 11  | Token lifetimes and refresh rotation                       | 5    | 15 min / 60 day sliding, rotating        | auth                       |
 | 12  | Location ingest shape and accepted rate                    | 7    | batched array every 20 s                 | pro app                    |
@@ -419,3 +445,10 @@ and the design system are built.
 Rows 5 and 17 are product decisions, not technical ones, and need whoever owns
 the product. Row 17 matters because the prototype's checkout copy promises one
 thing and the flow implies another.
+
+Rows 8 and 9 are settled: the response timer expires a request into `expired`,
+and declining an estimate returns the job to `arrived`. Both are implemented in
+the §6 table and in `src/domain/job-transitions.ts`. Settling them also added a
+transition neither row anticipated — `arrived` to `completed`, for a visit that
+finishes without an approved estimate. They stay listed here so the reasoning
+behind the machine is not lost once the table looks obvious.
