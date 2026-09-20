@@ -58,7 +58,7 @@ architecture doc.
 In-memory store seeded from the prototype's `lib/pynaro-data.ts`: 12
 categories, 5 businesses, 10 technicians, platform settings.
 
-Implements the ten-state job machine with real guards, rejecting an illegal
+Implements the eleven-state job machine with real guards, rejecting an illegal
 intent the way the backend will. Artificial latency, and a toggle that forces
 failures so error states can be built and tested.
 
@@ -100,10 +100,31 @@ sheet and provider profile screen.
 Five steps: service, details, address, provider, review. Draft store scoped to
 the wizard stack. Image picker, max five files, images and video.
 
+**Request again.** A job in `expired` or `cancelled` offers "Request again" on
+the job detail screen. It opens the wizard prefilled from that job — trade,
+problem, urgency, address, unit, access notes — with the provider selection
+cleared, and ends by creating a new job.
+
+Client-side only: no new state, no new intent, no link between the old job and
+the new one. It is the wizard with a starting draft, not a transition, which is
+what §6's no-lead-blasting rule requires — moving a job to another provider is
+a fresh decision by the customer, so it has to produce a fresh request.
+
+Clearing the provider is the point rather than a detail. Re-requesting from the
+business that just failed to answer is the one outcome nobody wants, so the
+provider step starts empty and has to be chosen again.
+
+This is the promise the prototype's countdown makes and never keeps: at zero it
+renders *"Response window ended — choose another pro"* and offers no way to do
+so. Copy that line into the expired state, and make it a button.
+
 ### 11. Job detail
 
 Waiting state with the response countdown, tracking, estimate approval,
 payment, receipt and review.
+
+The expired and cancelled states carry the "Request again" button specified in
+step 10; whichever of the two steps lands second wires it up.
 
 ### 12. Technician app
 
@@ -120,3 +141,16 @@ this as new design rather than a port.
 Generate an OpenAPI 3.1 document from `src/api/types.ts` and the mock's
 routes. Give it to the backend developer alongside the decision table in the
 architecture doc. Fill in `src/api/http/` behind the same interface.
+
+**Strip the mock from production builds.** `src/api/index.ts` imports both
+adapters statically and picks between them at runtime, so today the mock, its
+seed data and its dev controls are all in the shipped bundle. That is harmless
+while the mock is the only adapter that works and every build points at it. It
+stops being harmless the moment a real backend exists: a production app would
+carry a second, fully functional data layer plus fixture customers and jobs,
+reachable by anything that can flip `apiMode`.
+
+Turning it into a build-time branch is the fix, so the unused adapter is never
+in the graph rather than merely unreachable. Done when a production bundle
+contains no string from `src/api/mock/seed.ts` — grep the output of
+`expo export`, do not take the bundler's word for it.

@@ -10,15 +10,8 @@
  * The second exercises the affordance helpers, which is where a mistake would
  * show up as a button that should not be there.
  */
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-import {
-  statusLabels,
-  type JobIntent,
-  type JobStatus,
-  type JobTrigger,
-} from "@/api/types";
+import { diagramEdges, documentedTransitions, normalise } from "@/test-support/section-6";
+import { statusLabels, type JobIntent, type JobStatus } from "@/api/types";
 
 import {
   JOB_TRANSITIONS,
@@ -26,105 +19,7 @@ import {
   actionsFor,
   isTerminal,
   resultOf,
-  type JobTransition,
 } from "./job-transitions";
-
-// ---------------------------------------------------------------------------
-// §6 of docs/architecture.md, parsed
-// ---------------------------------------------------------------------------
-
-const ARCHITECTURE = join(__dirname, "..", "..", "docs", "architecture.md");
-
-/** The path segment under `/jobs/{id}/`, mapped to the trigger it stands for. */
-const ENDPOINT_TO_TRIGGER: Record<string, JobTrigger> = {
-  accept: "accept",
-  cancel: "cancel",
-  depart: "depart",
-  arrive: "arrive",
-  estimate: "estimate",
-  "estimate/approve": "approve_estimate",
-  "estimate/decline": "decline_estimate",
-  start: "start",
-  complete: "complete",
-  pay: "pay",
-};
-
-/** How the doc's prose names each actor. */
-const ACTOR_PHRASES = [
-  { phrase: "technician", actor: "technician" },
-  { phrase: "dispatcher", actor: "dispatcher" },
-  { phrase: "customer", actor: "customer" },
-  { phrase: "response timer", actor: "system" },
-] as const;
-
-function section6(): string {
-  const md = readFileSync(ARCHITECTURE, "utf8");
-  const after = md.split("## 6. Job state machine")[1];
-  if (after === undefined) throw new Error("§6 not found in docs/architecture.md");
-  const body = after.split("\n## 7.")[0];
-  if (body === undefined) throw new Error("§7 not found; cannot bound §6");
-  return body;
-}
-
-/** Table rows only: four cells, and not the header or its separator. */
-function tableRows(body: string): string[][] {
-  return body
-    .split("\n")
-    .filter((line) => line.startsWith("|"))
-    .map((line) =>
-      line
-        .replace(/^\|/, "")
-        .replace(/\|$/, "")
-        .split("|")
-        .map((cell) => cell.trim()),
-    )
-    .filter(
-      (cells) =>
-        cells.length === 4 && cells[0] !== "From" && !/^-+$/.test(cells[0] ?? ""),
-    );
-}
-
-function triggerFrom(endpointCell: string): JobTrigger {
-  const quoted = /`([^`]+)`/.exec(endpointCell)?.[1];
-  if (quoted === undefined) {
-    throw new Error(`no backticked token in endpoint cell: ${endpointCell}`);
-  }
-  const path = /\/jobs\/\{id\}\/(.+)$/.exec(quoted)?.[1];
-  // A row with no route is server-initiated; the token is the trigger itself.
-  if (path === undefined) return quoted as JobTrigger;
-  const trigger = ENDPOINT_TO_TRIGGER[path];
-  if (trigger === undefined) throw new Error(`unmapped endpoint: ${quoted}`);
-  return trigger;
-}
-
-function actorsFrom(actorCell: string): string[] {
-  return ACTOR_PHRASES.filter(({ phrase }) => actorCell.includes(phrase))
-    .map(({ actor }) => actor)
-    .sort();
-}
-
-function documentedTransitions(): JobTransition[] {
-  return tableRows(section6()).map((cells) => {
-    const [from, actor, endpoint, to] = cells as [string, string, string, string];
-    return {
-      from: from as JobStatus,
-      trigger: triggerFrom(endpoint),
-      to: to as JobStatus,
-      actors: actorsFrom(actor),
-    } as JobTransition;
-  });
-}
-
-/** `a --> b` edges from the mermaid diagram, `[*]` included. */
-function diagramEdges(body: string): [string, string][] {
-  const mermaid = body.split("```mermaid")[1]?.split("```")[0] ?? "";
-  return [...mermaid.matchAll(/^\s*(\S+) --> (\S+)$/gm)].map((m) => [
-    m[1] as string,
-    m[2] as string,
-  ]);
-}
-
-const normalise = (t: JobTransition) => ({ ...t, actors: [...t.actors].sort() });
 
 describe("§6 of docs/architecture.md", () => {
   it("is reproduced by JOB_TRANSITIONS, row for row and in order", () => {
@@ -146,7 +41,7 @@ describe("§6 of docs/architecture.md", () => {
   });
 
   it("agrees with its own mermaid diagram", () => {
-    const edges = diagramEdges(section6());
+    const edges = diagramEdges();
     const drawn = new Set(
       edges
         .filter(([from, to]) => from !== "[*]" && to !== "[*]")
@@ -157,7 +52,7 @@ describe("§6 of docs/architecture.md", () => {
   });
 
   it("starts the diagram at the one state nothing transitions into", () => {
-    const entry = diagramEdges(section6())
+    const entry = diagramEdges()
       .filter(([from]) => from === "[*]")
       .map(([, to]) => to);
     const reachedByTransition = new Set(JOB_TRANSITIONS.map((t) => t.to));
@@ -169,7 +64,7 @@ describe("§6 of docs/architecture.md", () => {
   });
 
   it("draws an exit arrow from exactly the terminal states", () => {
-    const exits = diagramEdges(section6())
+    const exits = diagramEdges()
       .filter(([, to]) => to === "[*]")
       .map(([from]) => from)
       .sort();

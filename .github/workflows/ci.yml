@@ -1,0 +1,45 @@
+# Pull request gate. §10 of docs/architecture.md: typecheck, lint, unit tests
+# and — once the backend exists — the `api:generate` no-diff check.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Compiles the app with `lib: ["ESNext"]` and no DOM, against the list of
+      # globals React Native actually installs. Catches a browser-only API that
+      # the ordinary typecheck accepts and the device rejects at runtime — the
+      # way `structuredClone` did. See scripts/runtime-globals.d.ts.
+      - name: Host globals
+        run: pnpm check:globals
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format
+        run: pnpm format:check
+
+      # Includes the checks that parse docs/architecture.md §6 and fail when the
+      # document and the state machine disagree.
+      - name: Test
+        run: pnpm test

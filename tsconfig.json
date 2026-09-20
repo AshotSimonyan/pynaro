@@ -16,5 +16,8 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules", "reference", "ios", "android", "dist"]
+  // `scripts` is excluded because scripts/runtime-globals.d.ts redeclares
+  // globals that lib.dom already provides. It is only ever compiled by
+  // tsconfig.runtime.json, where lib.dom is deliberately absent.
+  "exclude": ["node_modules", "reference", "ios", "android", "dist", "scripts"]
 }

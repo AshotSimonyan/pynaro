@@ -31,4 +31,32 @@ module.exports = defineConfig([
     files: ["src/api/**"],
     rules: { "no-restricted-imports": "off" },
   },
+  {
+    // `declare var` is the only form that declares an ambient global; `let` and
+    // `const` in a .d.ts do not attach to the global scope the same way. This
+    // is not a style choice, so the rule does not apply to declaration files.
+    files: ["**/*.d.ts"],
+    rules: { "no-var": "off" },
+  },
+  {
+    // Runtime values reach the app through `expo-constants` extra, never
+    // `process.env` (§10 of docs/architecture.md). Metro inlines
+    // `process.env.EXPO_PUBLIC_*` at build time, so a read here silently bakes
+    // in whatever was set on the machine that built the bundle.
+    //
+    // This became reachable when tsconfig gained `"types": ["node", "jest"]`
+    // for the test suite, which made the Node globals visible to app code too.
+    files: ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "process",
+          message:
+            "Read config from '@/lib/config', which comes from expo-constants. See §10 of docs/architecture.md.",
+        },
+      ],
+    },
+  },
 ]);

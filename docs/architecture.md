@@ -280,6 +280,24 @@ a revised estimate, not a dead job. This makes `arrived → estimate_sent →
 arrived` the one cycle in the machine, so a screen rendering the timeline must
 expect a state to recur.
 
+**One request, one provider — "no lead blasting".** A request is addressed to
+the single business the customer chose, and is not broadcast to several
+providers competing to claim it. The prototype states this as a locked platform
+rule rather than a setting: *"Each request goes to one customer-selected
+business"*, with *"Customer approval is required before choosing another
+provider"*. It is the rule the marketplace is sold on, so the state machine has
+to enforce it rather than leave it to the UI.
+
+Two consequences for the `accept` row above, neither of which the table itself
+expresses:
+
+- A technician may only accept a request addressed to their own business.
+  Acceptance is first-come among that business's technicians, not among all
+  providers. The mock enforces this and answers `403 not_owner`.
+- Moving a job to a different provider is not a transition. It is a new
+  decision by the customer, and until there is an intent for it, the only route
+  is `cancel` and request again.
+
 **A visit can complete from `arrived`** without an estimate ever being
 approved — the diagnosis was the whole job, or the customer declined the work
 and sent the technician away. The technician sends `complete` from `arrived`
@@ -441,10 +459,19 @@ and the design system are built.
 | 16  | Stripe Connect model and who is merchant of record         | 9    | destination charges with application fee | payments                   |
 | 17  | Is the request-time authorisation a hold or a saved card   | 9    | decide before writing the copy           | request flow, legal copy   |
 | 18  | Staging accounts and a way to force transitions            | 10   | yes                                      | QA throughput              |
+| 19  | May a dispatcher assign a request across businesses        | 6    | no — it breaks "no lead blasting"        | accept endpoint, dispatch  |
 
 Rows 5 and 17 are product decisions, not technical ones, and need whoever owns
 the product. Row 17 matters because the prototype's checkout copy promises one
 thing and the flow implies another.
+
+Row 19 exists because §6 lets a dispatcher accept on a technician's behalf,
+while the no-lead-blasting rule says a request belongs to one business. Those
+two only agree if a dispatcher is scoped to a single business. If dispatch is
+ever a platform-level role that can place a job with whoever is free, that is
+the same rule bending, and the customer needs to be asked. The mobile app does
+not have a dispatcher, so nothing here is blocked on the answer — the backend's
+`accept` endpoint is.
 
 Rows 8 and 9 are settled: the response timer expires a request into `expired`,
 and declining an estimate returns the job to `arrived`. Both are implemented in

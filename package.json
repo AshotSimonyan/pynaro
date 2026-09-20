@@ -9,11 +9,13 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --clean",
     "typecheck": "tsc --noEmit",
+    "check:globals": "tsc -p tsconfig.runtime.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "jest",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check": "pnpm typecheck && pnpm check:globals && pnpm lint && pnpm format:check && pnpm test"
   },
   "dependencies": {
     "@gorhom/bottom-sheet": "^5.2.14",
