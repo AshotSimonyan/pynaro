@@ -1,0 +1,17 @@
+node_modules/
+.expo/
+dist/
+ios/
+android/
+assets/
+pnpm-lock.yaml
+expo-env.d.ts
+
+# Reference prototype: read-only, not ours to format.
+reference/
+
+# Hand-authored specs. Prettier reformats their tables and misparses the
+# illustrative code blocks as real TypeScript.
+docs/
+CLAUDE.md
+README.md
