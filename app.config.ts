@@ -83,6 +83,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           backgroundColor: "#f3f6fb",
         },
       ],
+      // Temporary: adopts the UIScene life cycle that the iOS 27 SDK requires.
+      // Remove once Expo ships scene support. See docs/ios-scene-delegate.md.
+      "./plugins/with-ios-scene-delegate",
     ],
     experiments: {
       typedRoutes: true,

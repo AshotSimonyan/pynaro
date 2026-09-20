@@ -1,4 +1,9 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { colors, spacing, typography } from "@/theme";
+
+import { DevKitLink } from "./dev-kit-link";
 
 /**
  * Step 1 stand-in. Every route in docs/architecture.md §2 exists so the router
@@ -7,13 +12,20 @@ import { StyleSheet, Text, View } from "react-native";
  */
 export function PlaceholderScreen({ title }: { title: string }) {
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root}>
       <Text style={styles.title}>{title}</Text>
-    </View>
+      <DevKitLink />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 15, opacity: 0.4 },
+  root: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.lg,
+    backgroundColor: colors.background,
+  },
+  title: { ...typography.heading, color: colors.textMuted },
 });

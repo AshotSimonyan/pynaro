@@ -14,7 +14,7 @@ Approved runtime dependencies. Ask before adding anything else:
 
 expo-router, @tanstack/react-query, zustand, react-native-maps,
 expo-location, expo-task-manager, expo-notifications, expo-image-picker,
-expo-secure-store, expo-constants, react-hook-form, zod,
+expo-secure-store, expo-constants, expo-font, react-hook-form, zod,
 @gorhom/bottom-sheet, react-native-reanimated, react-native-gesture-handler,
 @shopify/flash-list.
 
