@@ -22,6 +22,7 @@ export const devControls: DevControls = useHttp ? httpDevControls : mockDevContr
 
 export * from "./types";
 export * from "./errors";
+export * from "./keys";
 export type {
   Actor,
   Api,

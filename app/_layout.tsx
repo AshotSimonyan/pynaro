@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ToastProvider } from "@/components/ui";
+import { QueryProvider } from "@/query";
 import { colors, fontAssets, stackScreenOptions } from "@/theme";
 
 // Which group `/` lands in before the session is known. Step 6 replaces this
@@ -41,17 +42,21 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <BottomSheetModalProvider>
-          <ToastProvider>
-            <StatusBar style="dark" />
-            <Stack screenOptions={stackScreenOptions}>
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(customer)" />
-              <Stack.Screen name="(pro)" />
-              <Stack.Screen name="+not-found" />
-            </Stack>
-          </ToastProvider>
-        </BottomSheetModalProvider>
+        {/* Above the session gate step 6 adds below it, so logout can clear
+            the cache (§5) without the provider unmounting first. */}
+        <QueryProvider>
+          <BottomSheetModalProvider>
+            <ToastProvider>
+              <StatusBar style="dark" />
+              <Stack screenOptions={stackScreenOptions}>
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(customer)" />
+                <Stack.Screen name="(pro)" />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+            </ToastProvider>
+          </BottomSheetModalProvider>
+        </QueryProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

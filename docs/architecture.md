@@ -141,12 +141,26 @@ last-used address in AsyncStorage. No job data is cached to disk.
 **Query key factory** in `src/api/keys.ts`:
 
 ```
-jobs.all              ['jobs']
-jobs.list(filters)    ['jobs', 'list', filters]
-jobs.detail(id)       ['jobs', 'detail', id]
-catalog.categories    ['catalog', 'categories']
-availability(near)    ['availability', near]
+jobs.all                    ['jobs']
+jobs.lists()                ['jobs', 'list']
+jobs.list(filters)          ['jobs', 'list', filters]
+jobs.detail(id)             ['jobs', 'detail', id]
+catalog.categories()        ['catalog', 'categories']
+catalog.businesses(filters) ['catalog', 'businesses', 'list', filters]
+catalog.business(id)        ['catalog', 'businesses', 'detail', id]
+availability.list(filters)  ['availability', 'list', filters]
+availability.detail(id)     ['availability', 'detail', id]
+platform.settings()         ['platform', 'settings']
+session.me()                ['session', 'me']
+earnings.summary()          ['earnings', 'summary']
 ```
+
+Every namespace also exposes `all`, the prefix that sweeps it. A list and a
+detail carry a `list` or `detail` segment so that `['catalog', 'businesses', x]`
+cannot mean a filter object on one call and an id on the next. Technicians are
+keyed under `availability` rather than `catalog` because `status` and `eta`
+change minute to minute; a `near` point joins those filters when the backend
+grows one.
 
 | Query                         | staleTime | Refetch behaviour                               |
 | ----------------------------- | --------- | ----------------------------------------------- |
@@ -155,8 +169,14 @@ availability(near)    ['availability', near]
 | Nearby availability           | 15 s      | poll 15 s while the map screen is focused       |
 | Job list                      | 30 s      | on focus                                        |
 | Job detail, active            | 10 s      | poll 10 s while not terminal, on focus, on push |
-| Job detail, paid or cancelled | infinite  | never                                           |
+| Job detail, paid or cancelled | `"static"` | never                                           |
 | Earnings                      | 5 min     | on focus                                        |
+
+`"static"` in that table is the literal TanStack value, not a stand-in for
+"infinite". The two are not the same: an `Infinity` query is never stale but
+still refetches when something invalidates it, and every job write invalidates
+`jobs.all`, so a finished job would go back to the server each time any other
+job moved. Nothing can change a terminal job, so nothing should ask.
 
 **Mutations write through, they do not guess.** Every job mutation returns the
 full updated job; the app seeds `jobs.detail(id)` from the response and
@@ -165,8 +185,11 @@ owns the state machine and an optimistic transition the server rejects leaves
 the customer looking at a lie.
 
 **Offline** is handled with retry and clear empty states, not a full offline
-mode. Wire `onlineManager` to NetInfo so queries resume on reconnect, and let
-mutations fail loudly rather than queueing.
+mode. `onlineManager` is wired to `expo-network` so queries resume on
+reconnect, and mutations fail loudly rather than queueing. Only a definite "no"
+from the platform counts as offline: Query pauses every query while the manager
+says offline, so reading an unknown state as offline would read to the user as
+an app that has hung.
 
 ## 5. Authentication and token refresh
 
