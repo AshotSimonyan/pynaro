@@ -39,14 +39,16 @@ per-environment URL. Everything in section 3 depends on it.
 ## 2. Route structure and role-based protection
 
 Three top-level groups, one per audience. The root layout reads the session and
-redirects once; each group's layout then guards its own subtree, so a deep link
-into the wrong group cannot render even for a frame.
+mounts only the group that session belongs in; each group's layout then guards
+its own subtree, so a deep link into the wrong group cannot render even for a
+frame.
 
 ```
 app/
   _layout.tsx                  providers + session gate + splash hold
   (auth)/
-    _layout.tsx                redirect out if already signed in
+    _layout.tsx                out again if already signed in
+    index.tsx                  what `/` resolves to while signed out
     welcome.tsx  sign-in.tsx  sign-up.tsx  permissions.tsx
   (customer)/
     _layout.tsx                requires role === "customer"
@@ -70,11 +72,23 @@ app/
 ```
 
 **How the gate works.** The root layout keeps the native splash up while the
-session hydrates from SecureStore, so there is no flash of the wrong group.
-Once `status` is known it is `signed-out`, `customer` or `technician`, and the
-layout renders `<Redirect>` accordingly. Each group layout repeats the check
-rather than trusting the parent, because Expo Router keeps mounted screens
-alive across redirects.
+session hydrates from SecureStore, so there is no flash of the wrong group. The
+session is a three-state snapshot — `hydrating`, `signed-out`, or `signed-in`
+with a user whose `role` decides the group — and `hydrating` is distinct from
+`signed-out` precisely so the splash has something to wait on.
+
+Once it is known, the root layout wraps each group in `<Stack.Protected>`
+rather than rendering a `<Redirect>`. A guarded-off group is not in the
+navigation state at all, so a deep link into the wrong one cannot render even
+for a frame, because there is no frame to render. That also leaves exactly one
+group answering `/`, which is why each group carries its own index, and it is
+why the root stack names no `unstable_settings.anchor`: an anchor names one
+route as the tree's base, and which group that should be changes with the
+session.
+
+Each group layout still repeats the check underneath, as the second line.
+Expo Router keeps mounted screens alive across redirects, and a layout that
+trusted its parent would be the one place a role change did not reach.
 
 **Role comes from the server, never from the client.** The prototype's role
 picker is a demo control and does not ship.

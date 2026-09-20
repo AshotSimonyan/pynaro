@@ -292,6 +292,50 @@ export const statusLabels: Record<JobStatus, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
+/**
+ * Who is signed in.
+ *
+ * `role` comes from here and from nowhere else. §2 of docs/architecture.md is
+ * explicit that the prototype's role picker is a demo control that does not
+ * ship: the app asks the server who it is talking to and routes on the answer,
+ * so a customer cannot reach the technician group by choosing to.
+ */
+export type SessionUser = {
+  id: string;
+  role: AppRole;
+  name: string;
+  email: string;
+  phone: string;
+  /**
+   * The business this technician works for. Null for a customer.
+   *
+   * Carried on the session because "no lead blasting" (§6) is enforced against
+   * it: a technician may only accept a request addressed to their own business.
+   */
+  businessId: string | null;
+};
+
+/**
+ * What a sign-in returns, and what the app persists (§5).
+ *
+ * The two tokens are stored differently and deliberately: the access token is
+ * held in memory and mirrored to SecureStore, the refresh token lives only in
+ * SecureStore under `WHEN_UNLOCKED_THIS_DEVICE_ONLY` and never reaches a log or
+ * a breadcrumb.
+ */
+export type AuthSession = {
+  accessToken: string;
+  /** Rotating. Every refresh issues a new one and invalidates its predecessor. */
+  refreshToken: string;
+  /** When the access token stops being accepted. */
+  accessTokenExpiresAt: IsoDateTime;
+  user: SessionUser;
+};
+
+// ---------------------------------------------------------------------------
 // Platform
 // ---------------------------------------------------------------------------
 

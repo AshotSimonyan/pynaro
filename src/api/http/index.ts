@@ -18,6 +18,13 @@ function notImplemented(name: string): never {
 }
 
 export const httpApi: Api = {
+  signIn: () => notImplemented("signIn"),
+  signOut: () => notImplemented("signOut"),
+  getMe: () => notImplemented("getMe"),
+  // Void rather than throwing: the session store calls this on every start,
+  // before anything has had a chance to notice the adapter is a stub, and a
+  // throw here would fail hydration instead of the first real request.
+  setAccessToken: () => {},
   listCategories: () => notImplemented("listCategories"),
   listBusinesses: () => notImplemented("listBusinesses"),
   getBusiness: () => notImplemented("getBusiness"),

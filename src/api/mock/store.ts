@@ -6,9 +6,10 @@
  */
 import { ApiError, type ApiErrorCode } from "../errors";
 import type { Actor, LatencyRange } from "../contract";
-import type { Job, PlatformSettings } from "../types";
+import type { Job, PlatformSettings, SessionUser } from "../types";
 import {
   SEED_CUSTOMER,
+  seedAccounts,
   seedBusinesses,
   seedCategories,
   seedJobs,
@@ -25,6 +26,14 @@ type State = {
   jobs: Job[];
   settings: PlatformSettings;
   actor: Actor;
+  /** What `setAccessToken` was last handed. Null means no session. */
+  accessToken: string | null;
+  /**
+   * Tokens `signOut` has retired. In memory, so it empties on reload — which
+   * is right for a mock and wrong for a backend, where revocation outlives a
+   * process.
+   */
+  revoked: Set<string>;
   latency: LatencyRange;
   failureRate: number;
   pendingFailure: ApiErrorCode | null;
@@ -38,6 +47,8 @@ function freshState(): State {
     jobs: seedJobs(new Date()),
     settings: { ...seedSettings },
     actor: { ...SEED_ACTOR },
+    accessToken: null,
+    revoked: new Set<string>(),
     latency: { ...DEFAULT_LATENCY },
     failureRate: 0,
     pendingFailure: null,
@@ -61,12 +72,53 @@ export const store = {
   get idempotency(): Map<string, Job> {
     return state.idempotency;
   },
+  get accessToken(): string | null {
+    return state.accessToken;
+  },
+  accounts: seedAccounts,
   categories: seedCategories,
   businesses: seedBusinesses,
   technicians: seedTechnicians,
 
   setActor(actor: Actor): void {
     state.actor = { ...actor };
+  },
+
+  /**
+   * The signed-in caller, or null.
+   *
+   * Tokens are self-describing — `mock-access.<userId>.<nonce>` — rather than
+   * rows in a table the mock holds. A table would empty on every reload, so a
+   * session restored from SecureStore would fail validation on each cold start
+   * and the persistence this step exists to build would never once be
+   * observable. A real JWT is self-describing too, so this is the shape the
+   * backend produces, not a shortcut around it.
+   */
+  userForToken(token: string | null): SessionUser | null {
+    if (token === null || state.revoked.has(token)) return null;
+    const id = /^mock-access\.([^.]+)\./.exec(token)?.[1];
+    if (id === undefined) return null;
+    return seedAccounts.find((account) => account.user.id === id)?.user ?? null;
+  },
+
+  /**
+   * Point the adapter at a session, and with it the actor every §6 guard is
+   * checked against.
+   *
+   * An unknown or retired token authenticates nobody: the actor falls back to
+   * the seed customer so the dev screen and step 4's tests keep working
+   * unsigned-in, while `getMe` still answers 401 and the session store still
+   * signs out. The real backend has no such fallback, and step 14 takes it
+   * away with the rest of the mock.
+   */
+  setAccessToken(token: string | null): void {
+    state.accessToken = token;
+    const user = this.userForToken(token);
+    state.actor = user === null ? { ...SEED_ACTOR } : { role: user.role, id: user.id };
+  },
+
+  revoke(token: string | null): void {
+    if (token !== null) state.revoked.add(token);
   },
   setLatency(latency: LatencyRange | number): void {
     state.latency =

@@ -11,6 +11,7 @@
 import type { ApiErrorCode } from "./errors";
 import type {
   AppRole,
+  AuthSession,
   Business,
   Category,
   Cents,
@@ -20,6 +21,7 @@ import type {
   JobStatus,
   JobUrgency,
   PlatformSettings,
+  SessionUser,
   Technician,
 } from "./types";
 
@@ -62,7 +64,28 @@ export type Actor = {
   id: string;
 };
 
+export type SignInInput = {
+  email: string;
+  password: string;
+};
+
 export type Api = {
+  // Session (§5). Email only for now; Apple and Google join them in step 7.
+  signIn(input: SignInInput): Promise<AuthSession>;
+  signOut(): Promise<void>;
+  /** Who the current access token belongs to. Raises `unauthenticated` without one. */
+  getMe(): Promise<SessionUser>;
+  /**
+   * Hand the adapter the access token to send from here on, or `null` to stop
+   * sending one.
+   *
+   * Synchronous and void because it is not a request: on the HTTP adapter it
+   * sets what the auth middleware attaches to the next call. The session store
+   * is the only caller — a screen that wanted to reach for this would be
+   * routing around the session.
+   */
+  setAccessToken(token: string | null): void;
+
   // Catalog
   listCategories(): Promise<Category[]>;
   listBusinesses(params?: { categoryId?: string }): Promise<Business[]>;

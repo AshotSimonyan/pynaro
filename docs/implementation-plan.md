@@ -79,7 +79,8 @@ gate holding the splash while the session hydrates. The three route groups and
 both tab bars.
 
 Done when: signing in as either role lands in the right group, and a deep link
-into the wrong group redirects.
+into the wrong group does not render it — the guarded-off group is not in the
+navigation state to be linked into (section 2).
 
 ### 7. Auth and onboarding screens
 

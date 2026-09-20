@@ -11,10 +11,12 @@ import type {
   DevControls,
   ListJobsParams,
   Page,
+  SignInInput,
   WriteOptions,
 } from "../contract";
 import { ApiError, JobConflictError, type ApiErrorCode } from "../errors";
 import type {
+  AuthSession,
   Business,
   Category,
   Cents,
@@ -23,6 +25,7 @@ import type {
   JobStatus,
   JobTrigger,
   PlatformSettings,
+  SessionUser,
   Technician,
 } from "../types";
 import { findTransition, triggersFrom, type TransitionPayload } from "./machine";
@@ -312,6 +315,40 @@ function validateEstimate(items: readonly EstimateItem[]): void {
 }
 
 // ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
+/** 15 minutes, matching §5's "short-lived access token". */
+const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+
+function mintToken(kind: "access" | "refresh", userId: string): string {
+  return `mock-${kind}.${userId}.${store.nextId("t")}`;
+}
+
+function requireUser(): SessionUser {
+  const user = store.userForToken(store.accessToken);
+  if (user === null) {
+    throw new ApiError("unauthenticated", "Sign in to continue.", 401);
+  }
+  return user;
+}
+
+function authenticate(input: SignInInput): SessionUser {
+  const email = input.email.trim().toLowerCase();
+  if (email.length === 0) throw invalid("Enter your email address.", "email");
+  if (input.password.length === 0) throw invalid("Enter your password.", "password");
+
+  const account = store.accounts.find((candidate) => candidate.email === email);
+  // One message for a wrong address and a wrong password, which is the
+  // backend's job too: answering them differently tells an attacker which
+  // addresses have accounts.
+  if (account === undefined || account.password !== input.password) {
+    throw new ApiError("unauthenticated", "Email or password is incorrect.", 401);
+  }
+  return account.user;
+}
+
+// ---------------------------------------------------------------------------
 // The adapter
 // ---------------------------------------------------------------------------
 
@@ -334,6 +371,39 @@ function paginate(jobs: Job[], params: ListJobsParams | undefined): Page<Job> {
 }
 
 export const mockApi: Api = {
+  signIn: (input) =>
+    withTransport((): AuthSession => {
+      const user = authenticate(input);
+      const now = new Date();
+      const accessToken = mintToken("access", user.id);
+      // The adapter adopts the session it just issued, so the very next call
+      // is authenticated without the caller having to wire it up. On the HTTP
+      // adapter the middleware does this; here the store is the middleware.
+      store.setAccessToken(accessToken);
+      return {
+        accessToken,
+        refreshToken: mintToken("refresh", user.id),
+        accessTokenExpiresAt: new Date(
+          now.getTime() + ACCESS_TOKEN_TTL_SECONDS * 1000,
+        ).toISOString(),
+        user: clone(user),
+      };
+    }),
+
+  signOut: () =>
+    withTransport(() => {
+      // Revoking before clearing, because clearing loses the token to revoke.
+      store.revoke(store.accessToken);
+      store.setAccessToken(null);
+    }),
+
+  getMe: () => withTransport(() => clone(requireUser())),
+
+  // Not a request, so it does not go through `withTransport`: it cannot fail,
+  // cannot be slow, and must take effect before the next call rather than
+  // after a latency delay.
+  setAccessToken: (token) => store.setAccessToken(token),
+
   listCategories: () => withTransport(() => store.categories.map(clone)),
 
   listBusinesses: (params) =>

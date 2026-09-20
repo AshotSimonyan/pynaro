@@ -31,5 +31,6 @@ export type {
   LatencyRange,
   ListJobsParams,
   Page,
+  SignInInput,
   WriteOptions,
 } from "./contract";

@@ -5,17 +5,70 @@
  * The prototype quotes money in dollars (`serviceCallFee: 75`) because its API
  * divides its own cents by 100 on the way out. These are the cents.
  */
-import type { Business, Category, Job, PlatformSettings, Technician } from "../types";
+import type {
+  Business,
+  Category,
+  Job,
+  PlatformSettings,
+  SessionUser,
+  Technician,
+} from "../types";
 
 export const USD = "USD";
 
-/** The one customer the prototype has. Step 6 replaces this with a session. */
+/** The one customer the prototype has. Every seeded job belongs to them. */
 export const SEED_CUSTOMER = {
   id: "arman",
   name: "Arman G.",
   phone: "(424) 888-5555",
   cardLast4: "4242",
 } as const;
+
+/**
+ * The two accounts a developer can sign in as.
+ *
+ * There is no role picker — §2 is explicit that the prototype's was a demo
+ * control and does not ship — so the role has to arrive from the server, which
+ * means the credentials have to differ. Signing in as Marcus lands in the
+ * technician group because the server said technician, not because the app
+ * offered a choice.
+ *
+ * Marcus rather than any other technician: he is assigned `job-seed-en-route`,
+ * so a technician session opens onto a job it can actually act on.
+ */
+export type SeedAccount = {
+  email: string;
+  /** Plain text, on purpose. A mock that hashed would be pretending. */
+  password: string;
+  user: SessionUser;
+};
+
+export const seedAccounts: readonly SeedAccount[] = [
+  {
+    email: "arman@pynaro.test",
+    password: "pynaro",
+    user: {
+      id: SEED_CUSTOMER.id,
+      role: "customer",
+      name: SEED_CUSTOMER.name,
+      email: "arman@pynaro.test",
+      phone: SEED_CUSTOMER.phone,
+      businessId: null,
+    },
+  },
+  {
+    email: "marcus@andys.test",
+    password: "pynaro",
+    user: {
+      id: "marcus",
+      role: "technician",
+      name: "Marcus Reed",
+      email: "marcus@andys.test",
+      phone: "(424) 888-1210",
+      businessId: "andys",
+    },
+  },
+];
 
 export const seedCategories: readonly Category[] = [
   {
