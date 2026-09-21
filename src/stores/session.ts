@@ -37,11 +37,33 @@ type SessionActions = {
   hydrate: () => Promise<void>;
   /** Take a fresh sign-in: persist it, point the adapter at it, go signed-in. */
   adopt: (session: AuthSession) => Promise<void>;
+  /**
+   * Hold a session that sign-up just created, without going signed-in yet.
+   *
+   * §2's gate unmounts `(auth)` the instant a session exists, so a screen that
+   * has to run after the account is created and before the app opens — the
+   * permissions setup, which is the third screen of the sign-up flow — cannot
+   * exist if `adopt` is called at sign-up. Holding it here keeps onboarding
+   * where it belongs and leaves the gate alone.
+   *
+   * Not persisted, deliberately. An app killed mid-onboarding leaves an account
+   * that exists on the server and a device that is signed out, which is
+   * recoverable by signing in; persisting a half-finished sign-up would instead
+   * resurrect the setup screen at a cold start with no way to tell whether it
+   * had already been answered.
+   */
+  beginOnboarding: (session: AuthSession) => void;
+  /** Finish it: the held session becomes the real one. */
+  completeOnboarding: () => Promise<void>;
   /** Drop everything local. Does not call the server — `useSignOut` does that. */
   forget: () => Promise<void>;
 };
 
-export type SessionStore = { session: SessionSnapshot } & SessionActions;
+export type SessionStore = {
+  session: SessionSnapshot;
+  /** Set between sign-up and the end of onboarding, null otherwise. */
+  pendingSession: AuthSession | null;
+} & SessionActions;
 
 /**
  * Guards a second `hydrate` from a re-render or a fast refresh. A module-level
@@ -50,8 +72,9 @@ export type SessionStore = { session: SessionSnapshot } & SessionActions;
  */
 let hydration: Promise<void> | null = null;
 
-export const useSessionStore = create<SessionStore>()((set) => ({
+export const useSessionStore = create<SessionStore>()((set, get) => ({
   session: { status: "hydrating", user: null },
+  pendingSession: null,
 
   hydrate: () => {
     hydration ??= (async () => {
@@ -89,13 +112,24 @@ export const useSessionStore = create<SessionStore>()((set) => ({
     // keychain is one the next cold start silently undoes.
     await saveSession(session);
     api.setAccessToken(session.accessToken);
-    set({ session: { status: "signed-in", user: session.user } });
+    set({ session: { status: "signed-in", user: session.user }, pendingSession: null });
+  },
+
+  beginOnboarding: (session) => set({ pendingSession: session }),
+
+  completeOnboarding: async () => {
+    const pending = get().pendingSession;
+    // Nothing held means onboarding was reached without a sign-up — a deep
+    // link, or a reload in development. The screen redirects on the same
+    // condition; this is the half that keeps the store honest if it does not.
+    if (pending === null) return;
+    await get().adopt(pending);
   },
 
   forget: async () => {
     api.setAccessToken(null);
     await clearSession();
-    set({ session: { status: "signed-out", user: null } });
+    set({ session: { status: "signed-out", user: null }, pendingSession: null });
   },
 }));
 

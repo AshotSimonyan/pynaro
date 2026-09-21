@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   CardHeader,
+  Checkbox,
   EmptyState,
   Input,
   Progress,
@@ -39,6 +40,7 @@ export default function UiKitScreen() {
   const [text, setText] = useState("");
   const [notes, setNotes] = useState("Leaking under the kitchen sink.");
   const [notifications, setNotifications] = useState(true);
+  const [agreed, setAgreed] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
@@ -220,6 +222,29 @@ export default function UiKitScreen() {
           </View>
         </Section>
 
+        <Section title="Checkbox">
+          <Checkbox checked={agreed} onChange={setAgreed} label="I agree to the Terms">
+            <Text style={typography.body}>
+              I agree to the <Text style={styles.accent}>Terms of Service</Text>
+            </Text>
+          </Checkbox>
+          <Checkbox checked onChange={() => {}} label="Checked, disabled" disabled>
+            <Text style={typography.body}>Checked, disabled</Text>
+          </Checkbox>
+          <Checkbox
+            checked={false}
+            onChange={() => {}}
+            label="Unchecked, disabled"
+            disabled
+          >
+            <Text style={typography.body}>Unchecked, disabled</Text>
+          </Checkbox>
+          <View style={styles.inlineRow}>
+            <Text style={typography.body}>Box only, no label node</Text>
+            <Checkbox checked={agreed} onChange={setAgreed} label="Box only" />
+          </View>
+        </Section>
+
         <Section title="Progress">
           <Progress value={68} label="Finding professionals" />
           <Progress value={40} tone="success" />
@@ -324,6 +349,7 @@ const styles = StyleSheet.create({
   sectionBody: { gap: spacing.md },
   row: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
   inlineRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  accent: { color: colors.primary },
   dot: { width: 14, height: 14, borderRadius: radius.pill },
   swatchRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   swatch: { width: 64, gap: spacing.xs },

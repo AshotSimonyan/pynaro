@@ -8,7 +8,13 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { api, type AuthSession, type SignInInput } from "@/api";
+import {
+  api,
+  type AuthSession,
+  type SignInInput,
+  type SignUpInput,
+  type SocialProvider,
+} from "@/api";
 import { useSessionStore } from "@/stores";
 
 export function useSignIn() {
@@ -20,6 +26,44 @@ export function useSignIn() {
       // in, so a keychain that refuses has to fail the mutation and show the
       // user an error, not leave them signed in until the next cold start.
       await adopt(session);
+      return session;
+    },
+  });
+}
+
+/**
+ * Creating an account, which does not sign you in — not yet.
+ *
+ * `beginOnboarding` rather than `adopt`, because the permissions setup is the
+ * third screen of this flow and §2's gate would unmount `(auth)` out from under
+ * it the moment a session existed. The permissions screen calls
+ * `completeOnboarding`, and that is where the session is persisted.
+ */
+export function useSignUp() {
+  const beginOnboarding = useSessionStore((state) => state.beginOnboarding);
+  return useMutation<AuthSession, Error, SignUpInput>({
+    mutationFn: async (input) => {
+      const session = await api.signUp(input);
+      beginOnboarding(session);
+      return session;
+    },
+  });
+}
+
+/**
+ * Apple or Google. Same flow as `useSignUp` and for the same reason: the
+ * prototype sends both into the setup screen, and so do we.
+ *
+ * The screen passes a provider name and gets a session. Whether the adapter ran
+ * a native SDK or picked a seeded account is not visible from here, which is
+ * the whole point of putting it behind the contract.
+ */
+export function useSignInWithProvider() {
+  const beginOnboarding = useSessionStore((state) => state.beginOnboarding);
+  return useMutation<AuthSession, Error, SocialProvider>({
+    mutationFn: async (provider) => {
+      const session = await api.signInWithProvider(provider);
+      beginOnboarding(session);
       return session;
     },
   });

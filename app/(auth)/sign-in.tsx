@@ -1,41 +1,39 @@
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { isApiError } from "@/api";
-import { Button, Input } from "@/components/ui";
-import { useSignIn } from "@/features/session";
+import { BackButton, Button, Input } from "@/components/ui";
+import { authFormError, errorFor, useSignIn } from "@/features/session";
 import { colors, spacing, typography } from "@/theme";
 
 /**
  * Sign-in, kept plain on purpose.
  *
  * The prototype has no sign-in screen — its onboarding is a three-step demo
- * that never authenticates anyone — so there is nothing to port here, and step
- * 7's welcome and create-account screens are where the design work belongs.
- * What this needs to do today is prove §2's gate: two accounts, two roles, and
- * the role arriving from the server rather than from a picker.
+ * where "Log In" and "Get Started" go to the same place and neither
+ * authenticates anyone — so there is nothing to port here. Welcome and
+ * create-account carry the design; this one carries §2's gate: two accounts,
+ * two roles, and the role arriving from the server rather than from a picker.
  */
 export default function SignInScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const signIn = useSignIn();
 
-  // A 401 is the user's mistake and reads as one. Anything else is ours, and
-  // saying "email or password is incorrect" about a dropped connection sends
-  // people off to reset a password that was fine.
-  const message =
-    signIn.error === null
-      ? null
-      : isApiError(signIn.error) && signIn.error.status === 401
-        ? signIn.error.message
-        : "We could not sign you in. Check your connection and try again.";
+  const error = authFormError(
+    signIn.error,
+    "We could not sign you in. Check your connection and try again.",
+  );
+  const message = error?.field === null ? error.message : null;
 
   const submit = () => {
     if (signIn.isPending) return;
@@ -52,6 +50,7 @@ export default function SignInScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
+          <BackButton fallback="/(auth)/welcome" />
           <Text style={styles.title}>Log in</Text>
           <Text style={styles.subtitle}>
             Welcome back. Your account decides what you see next.
@@ -67,6 +66,7 @@ export default function SignInScreen() {
             textContentType="emailAddress"
             returnKeyType="next"
             editable={!signIn.isPending}
+            error={errorFor(error, "email")}
           />
           <Input
             label="Password"
@@ -79,7 +79,7 @@ export default function SignInScreen() {
             returnKeyType="go"
             onSubmitEditing={submit}
             editable={!signIn.isPending}
-            error={message ?? undefined}
+            error={errorFor(error, "password") ?? message ?? undefined}
           />
 
           <Button
@@ -89,6 +89,17 @@ export default function SignInScreen() {
             disabled={email.trim().length === 0 || password.length === 0}
             fullWidth
           />
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.replace("/(auth)/sign-up")}
+            disabled={signIn.isPending}
+            style={({ pressed }) => [styles.footer, pressed && styles.footerPressed]}
+          >
+            <Text style={styles.footerText}>
+              New to Pynaro? <Text style={styles.footerStrong}>Create an account</Text>
+            </Text>
+          </Pressable>
 
           {__DEV__ && <SeedAccountHint />}
         </ScrollView>
@@ -126,6 +137,10 @@ const styles = StyleSheet.create({
   },
   title: typography.display,
   subtitle: { ...typography.body, color: colors.textMuted, marginBottom: spacing.sm },
+  footer: { alignItems: "center", paddingVertical: spacing.xs },
+  footerPressed: { opacity: 0.6 },
+  footerText: { ...typography.caption, fontSize: 11 },
+  footerStrong: { color: colors.primary },
   hint: {
     ...typography.caption,
     color: colors.textMuted,

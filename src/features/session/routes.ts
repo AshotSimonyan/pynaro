@@ -9,11 +9,11 @@ import type { AppRole } from "@/api";
 import type { SessionSnapshot } from "@/stores";
 
 /**
- * Sign-in rather than welcome, for now. Welcome is still the step 1
- * placeholder and has no way out of itself; step 7 builds it properly and this
- * moves to `/(auth)/welcome`.
+ * Welcome, which is where a signed-out app belongs: it is the only auth screen
+ * that offers both a way in and a way to sign up, and both of the others are
+ * reachable from it.
  */
-export const SIGNED_OUT_ROUTE = "/(auth)/sign-in" as const;
+export const SIGNED_OUT_ROUTE = "/(auth)/welcome" as const;
 
 /**
  * The group's tab index, not the group itself. A group is a path segment, not a

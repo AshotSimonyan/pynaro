@@ -85,6 +85,29 @@ navigation state to be linked into (section 2).
 ### 7. Auth and onboarding screens
 
 The three prototype screens: welcome, create account, permissions setup.
+`signUp` and `signInWithProvider` join the contract, both backed by the mock.
+
+**Onboarding is the tail of sign-up, not a first-run screen.** Creating an
+account does not adopt the session; the setup screen does, on Continue. Section
+2 explains why — a session existing is what unmounts `(auth)`, so a screen that
+runs after sign-up and before the app has to live in front of that.
+
+**Location asks for real, notifications do not.** The setup screen requests
+foreground location through `expo-location`, and handles the third state as
+well as the two obvious ones: denied-and-not-askable-again sends people to
+Settings rather than to a button that silently does nothing. The notifications
+switch stores a preference only — see step 10.
+
+**Left open, for step 8 or 12.** `listJobs` and `getJob` in the mock are not
+scoped to the caller: every session sees every seeded job. Step 7 surfaced it
+by making accounts that own nothing, and it stays invisible until step 8 renders
+a bookings list. Customer scoping is one line; technician scoping is not, since
+"which jobs may a technician see" is the same question as step 12's nearby
+requests. Whichever of the two lands first should settle both.
+
+Done when: Get Started leads to an account that exists in the mock, the setup
+screen prompts for location, and Continue lands in the customer group. Both
+social buttons produce a real session through the same seam.
 
 ### 8. Customer home, bookings, account
 
@@ -100,6 +123,14 @@ sheet and provider profile screen.
 
 Five steps: service, details, address, provider, review. Draft store scoped to
 the wizard stack. Image picker, max five files, images and video.
+
+**The two onboarding preferences land here.** Step 7's setup screen stores a
+notification preference without ever showing an OS prompt, and a default
+service address. This step reads both: the address prefills the wizard's address
+step, and once the first request is sent — the first moment there is anything
+worth being notified about — the app asks the system for notification
+permission if the preference says yes. Asking during onboarding is how an app
+collects a "no" before it has earned the "yes".
 
 **Request again.** A job in `expired` or `cancelled` offers "Request again" on
 the job detail screen. It opens the wizard prefilled from that job — trade,

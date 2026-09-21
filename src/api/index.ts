@@ -32,5 +32,7 @@ export type {
   ListJobsParams,
   Page,
   SignInInput,
+  SignUpInput,
+  SocialProvider,
   WriteOptions,
 } from "./contract";

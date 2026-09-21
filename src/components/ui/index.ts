@@ -1,11 +1,15 @@
 export { Avatar, initials } from "./avatar";
 export type { AvatarProps, AvatarSize } from "./avatar";
+export { BackButton } from "./back-button";
+export type { BackButtonProps } from "./back-button";
 export { Badge } from "./badge";
 export type { BadgeProps, BadgeVariant } from "./badge";
 export { Button } from "./button";
 export type { ButtonProps, ButtonSize, ButtonVariant } from "./button";
 export { Card, CardHeader } from "./card";
 export type { CardHeaderProps, CardProps, CardVariant } from "./card";
+export { Checkbox } from "./checkbox";
+export type { CheckboxProps } from "./checkbox";
 export { EmptyState } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";
 export { Input } from "./input";

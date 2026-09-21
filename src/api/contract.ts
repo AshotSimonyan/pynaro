@@ -69,9 +69,39 @@ export type SignInInput = {
   password: string;
 };
 
+/**
+ * Creating a customer account. There is no `role`: §2 rules out the client
+ * choosing one, and a technician account is created by their business in the
+ * dashboard, not here.
+ *
+ * `acceptedTerms` is on the wire rather than checked away in the screen because
+ * the backend is the one that has to be able to prove consent was given.
+ */
+export type SignUpInput = {
+  name: string;
+  phone: string;
+  email: string;
+  password: string;
+  acceptedTerms: boolean;
+};
+
+/** §5 ships email, Apple and Google. These are the other two. */
+export type SocialProvider = "apple" | "google";
+
 export type Api = {
-  // Session (§5). Email only for now; Apple and Google join them in step 7.
+  // Session (§5), all three methods.
   signIn(input: SignInInput): Promise<AuthSession>;
+  signUp(input: SignUpInput): Promise<AuthSession>;
+  /**
+   * Apple or Google, as one call.
+   *
+   * The identity token the provider SDK returns is deliberately not a parameter
+   * here. Acquiring it is the adapter's business — the HTTP adapter will run
+   * the native flow and POST the token, and the mock issues a session for a
+   * seeded social account — so a screen asks for "sign in with Apple" and does
+   * not learn how either side does it.
+   */
+  signInWithProvider(provider: SocialProvider): Promise<AuthSession>;
   signOut(): Promise<void>;
   /** Who the current access token belongs to. Raises `unauthenticated` without one. */
   getMe(): Promise<SessionUser>;

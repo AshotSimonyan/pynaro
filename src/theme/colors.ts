@@ -25,6 +25,16 @@ const palette = {
   greenTint: "#e8f9ef",
   amber: "#ef8b24",
   amberTint: "#fdf1e3",
+  // Google's blue, for the "G" on the social sign-in button. A third-party
+  // brand mark, so it is here rather than in a component but it is not a
+  // semantic token: nothing else may use it.
+  googleBlue: "#4285f4",
+  // The mark's own gradient, from `public/pynaro-mark.svg`. Close to `blue`
+  // but not equal to it, and deliberately kept separate: the brand asset has
+  // its own colours, and retinting it from the UI palette would be redrawing
+  // the logo every time the theme moved.
+  markStart: "#0a73ff",
+  markEnd: "#0048d8",
 } as const;
 
 /**
@@ -61,6 +71,11 @@ export const colors = {
   dangerMuted: palette.redTint,
   onDanger: palette.white,
   accent: palette.coral,
+
+  brandMarkStart: palette.markStart,
+  brandMarkEnd: palette.markEnd,
+  brandMarkGlyph: palette.white,
+  brandGoogle: palette.googleBlue,
 
   transparent: "transparent",
 } as const;

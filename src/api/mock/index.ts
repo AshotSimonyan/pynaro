@@ -12,6 +12,7 @@ import type {
   ListJobsParams,
   Page,
   SignInInput,
+  SignUpInput,
   WriteOptions,
 } from "../contract";
 import { ApiError, JobConflictError, type ApiErrorCode } from "../errors";
@@ -341,11 +342,93 @@ function authenticate(input: SignInInput): SessionUser {
   const account = store.accounts.find((candidate) => candidate.email === email);
   // One message for a wrong address and a wrong password, which is the
   // backend's job too: answering them differently tells an attacker which
-  // addresses have accounts.
-  if (account === undefined || account.password !== input.password) {
+  // addresses have accounts. A social-only account falls in here as well, for
+  // the same reason: saying "that address is Apple-only" is the same leak.
+  if (
+    account === undefined ||
+    account.password === null ||
+    account.password !== input.password
+  ) {
     throw new ApiError("unauthenticated", "Email or password is incorrect.", 401);
   }
   return account.user;
+}
+
+/**
+ * Loose on purpose: one `@`, something either side, a dot in the domain. The
+ * backend will do better, and anything stricter here rejects addresses that are
+ * perfectly valid — which is the usual way an email regex earns a bug report.
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** §5's minimum. Sign-in does not enforce it: seeded accounts predate the rule. */
+const MIN_PASSWORD_LENGTH = 8;
+
+function register(input: SignUpInput): SessionUser {
+  const name = input.name.trim();
+  const phone = input.phone.trim();
+  const email = input.email.trim().toLowerCase();
+
+  // Field order matches the screen's, so the first error a user sees is the
+  // first field they could have got wrong rather than the last.
+  if (name.length < 2) throw invalid("Enter your full name.", "name");
+  if (phone.replace(/\D/g, "").length < 10) {
+    throw invalid("Enter a mobile number we can reach you on.", "phone");
+  }
+  if (!EMAIL_PATTERN.test(email)) throw invalid("Enter a valid email address.", "email");
+  if (input.password.length < MIN_PASSWORD_LENGTH) {
+    throw invalid(
+      `Use at least ${MIN_PASSWORD_LENGTH} characters for your password.`,
+      "password",
+    );
+  }
+  // Checked here and not only in the screen: consent is something the backend
+  // has to be able to prove it was given, so it travels on the wire.
+  if (!input.acceptedTerms) {
+    throw invalid("Accept the Terms and Privacy Policy to continue.", "acceptedTerms");
+  }
+  if (store.accounts.some((candidate) => candidate.email === email)) {
+    // Unlike a failed sign-in, this one has to name the problem: a sign-up form
+    // that refused without saying why would be unusable. It is also not much of
+    // a leak, since anyone can learn the same thing by trying to register.
+    throw invalid("That email already has an account. Log in instead.", "email");
+  }
+
+  // Always a customer. §2 rules out the client choosing a role, and a
+  // technician account is created by their business in the dashboard.
+  const user: SessionUser = {
+    id: store.nextId("user"),
+    role: "customer",
+    name,
+    email,
+    phone,
+    businessId: null,
+  };
+  store.addAccount({ email, password: input.password, provider: null, user });
+  return user;
+}
+
+/**
+ * A session for `user`, and the adapter adopts it.
+ *
+ * Shared by all three entry points so they cannot drift: the bug where one of
+ * them mints a token but forgets to point the store at it is only reachable if
+ * this is written three times.
+ */
+function issueSession(user: SessionUser): AuthSession {
+  const accessToken = mintToken("access", user.id);
+  // The adapter adopts the session it just issued, so the very next call is
+  // authenticated without the caller having to wire it up. On the HTTP adapter
+  // the middleware does this; here the store is the middleware.
+  store.setAccessToken(accessToken);
+  return {
+    accessToken,
+    refreshToken: mintToken("refresh", user.id),
+    accessTokenExpiresAt: new Date(
+      Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000,
+    ).toISOString(),
+    user: clone(user),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -371,23 +454,29 @@ function paginate(jobs: Job[], params: ListJobsParams | undefined): Page<Job> {
 }
 
 export const mockApi: Api = {
-  signIn: (input) =>
-    withTransport((): AuthSession => {
-      const user = authenticate(input);
-      const now = new Date();
-      const accessToken = mintToken("access", user.id);
-      // The adapter adopts the session it just issued, so the very next call
-      // is authenticated without the caller having to wire it up. On the HTTP
-      // adapter the middleware does this; here the store is the middleware.
-      store.setAccessToken(accessToken);
-      return {
-        accessToken,
-        refreshToken: mintToken("refresh", user.id),
-        accessTokenExpiresAt: new Date(
-          now.getTime() + ACCESS_TOKEN_TTL_SECONDS * 1000,
-        ).toISOString(),
-        user: clone(user),
-      };
+  signIn: (input) => withTransport(() => issueSession(authenticate(input))),
+
+  signUp: (input) => withTransport(() => issueSession(register(input))),
+
+  /**
+   * No identity token crosses this boundary.
+   *
+   * The real flow runs the provider SDK inside the HTTP adapter and POSTs what
+   * it returns; here the provider name alone picks a seeded account. Either
+   * way the screen calls one function and gets a session, which is the only
+   * part of this that step 14 must not change.
+   */
+  signInWithProvider: (provider) =>
+    withTransport(() => {
+      const account = store.accounts.find((candidate) => candidate.provider === provider);
+      if (account === undefined) {
+        throw new ApiError(
+          "unauthenticated",
+          "That sign-in method is not available.",
+          401,
+        );
+      }
+      return issueSession(account.user);
     }),
 
   signOut: () =>

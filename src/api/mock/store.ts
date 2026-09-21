@@ -9,6 +9,7 @@ import type { Actor, LatencyRange } from "../contract";
 import type { Job, PlatformSettings, SessionUser } from "../types";
 import {
   SEED_CUSTOMER,
+  type MockAccount,
   seedAccounts,
   seedBusinesses,
   seedCategories,
@@ -24,6 +25,12 @@ const SEED_ACTOR: Actor = { role: "customer", id: SEED_CUSTOMER.id };
 
 type State = {
   jobs: Job[];
+  /**
+   * Seeded, then appended to by `signUp`. In `State` rather than read straight
+   * off the seed module so `reset()` drops the accounts a test created, the way
+   * reseeding a database would.
+   */
+  accounts: MockAccount[];
   settings: PlatformSettings;
   actor: Actor;
   /** What `setAccessToken` was last handed. Null means no session. */
@@ -45,6 +52,7 @@ type State = {
 function freshState(): State {
   return {
     jobs: seedJobs(new Date()),
+    accounts: seedAccounts.map((account) => ({ ...account })),
     settings: { ...seedSettings },
     actor: { ...SEED_ACTOR },
     accessToken: null,
@@ -75,7 +83,9 @@ export const store = {
   get accessToken(): string | null {
     return state.accessToken;
   },
-  accounts: seedAccounts,
+  get accounts(): readonly MockAccount[] {
+    return state.accounts;
+  },
   categories: seedCategories,
   businesses: seedBusinesses,
   technicians: seedTechnicians,
@@ -98,7 +108,12 @@ export const store = {
     if (token === null || state.revoked.has(token)) return null;
     const id = /^mock-access\.([^.]+)\./.exec(token)?.[1];
     if (id === undefined) return null;
-    return seedAccounts.find((account) => account.user.id === id)?.user ?? null;
+    return state.accounts.find((account) => account.user.id === id)?.user ?? null;
+  },
+
+  /** `signUp`'s side of the store. The only way the account list grows. */
+  addAccount(account: MockAccount): void {
+    state.accounts.push(account);
   },
 
   /**

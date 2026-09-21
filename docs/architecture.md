@@ -49,7 +49,8 @@ app/
   (auth)/
     _layout.tsx                out again if already signed in
     index.tsx                  what `/` resolves to while signed out
-    welcome.tsx  sign-in.tsx  sign-up.tsx  permissions.tsx
+    welcome.tsx  sign-in.tsx  sign-up.tsx
+    permissions.tsx            setup, the third screen of sign-up
   (customer)/
     _layout.tsx                requires role === "customer"
     (tabs)/
@@ -89,6 +90,25 @@ session.
 Each group layout still repeats the check underneath, as the second line.
 Expo Router keeps mounted screens alive across redirects, and a layout that
 trusted its parent would be the one place a role change did not reach.
+
+**Onboarding runs before the session is adopted.** The gate above has one
+consequence worth naming, because it decides where a screen lives: a session
+existing is what unmounts `(auth)`, so any screen that has to run *after* an
+account is created and *before* the app opens cannot be reached by creating the
+account first. The permissions setup is exactly that screen.
+
+So `signUp` and `signInWithProvider` do not adopt. They hand the session to the
+store's `pendingSession` slot, which changes no guard, and `permissions.tsx`
+calls `completeOnboarding()` — the session is persisted there, the guards flip,
+and `(auth)` leaves the navigation state with the setup screen inside it. The
+screen deliberately does not navigate afterwards; navigating would be racing
+the gate it just tripped. Reaching `/permissions` with nothing held redirects to
+welcome, which covers a deep link and a development reload.
+
+`pendingSession` is not persisted. An app killed mid-onboarding leaves an
+account on the server and a signed-out device, which signing in resolves;
+persisting it would instead bring the setup screen back at a cold start with no
+way to know whether it had already been answered.
 
 **Role comes from the server, never from the client.** The prototype's role
 picker is a demo control and does not ship.
@@ -210,6 +230,27 @@ an app that has hung.
 Short-lived access token, long-lived rotating refresh token, and one refresh in
 flight at a time. The prototype offers email, Apple and Google, so all three
 ship; Apple is mandatory on iOS once Google is there.
+
+**Four entry points, one seam.** `signIn`, `signUp`, `signInWithProvider` and
+`signOut` are all on the `Api` contract, so a screen asks for "continue with
+Apple" and learns nothing about how it happened. No identity token crosses that
+boundary: acquiring one is the adapter's business. The HTTP adapter will run the
+provider SDK and POST what it returns; the mock issues a session for a seeded
+social account, which is why Apple and Google work end to end today without
+`expo-apple-authentication` or `expo-auth-session` being in the build. Those two
+arrive with the real backend in step 14, and nothing above `src/api` changes
+when they do.
+
+**Sign-up creates customers only.** There is no role on `SignUpInput` — §2
+rules out the client choosing one — and a technician account is created by their
+business in the dashboard. Consent to the terms travels on the wire rather than
+being checked away in the screen, because the backend is what has to be able to
+prove it was given.
+
+**Password rules are the server's.** The client validates nothing it would then
+have to keep in sync; it renders the `validation_failed` envelope from §3
+against the field the error names. Sign-in deliberately does not enforce the
+sign-up minimum, since existing passwords predate any rule the backend adds.
 
 **Storage.** The access token lives in memory and is mirrored to SecureStore.
 The refresh token lives only in SecureStore, `WHEN_UNLOCKED_THIS_DEVICE_ONLY`,

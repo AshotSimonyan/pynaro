@@ -64,7 +64,10 @@ const SESSION: AuthSession = {
 beforeEach(() => {
   jest.clearAllMocks();
   resetSessionHydration();
-  useSessionStore.setState({ session: { status: "hydrating", user: null } });
+  useSessionStore.setState({
+    session: { status: "hydrating", user: null },
+    pendingSession: null,
+  });
   storage.loadSession.mockResolvedValue(null);
   storage.clearSession.mockResolvedValue(undefined);
   storage.saveSession.mockResolvedValue(undefined);
@@ -167,5 +170,51 @@ describe("forget", () => {
     expect(session()).toEqual({ status: "signed-out", user: null });
     expect(api.setAccessToken).toHaveBeenLastCalledWith(null);
     expect(storage.clearSession).toHaveBeenCalled();
+  });
+});
+
+describe("onboarding", () => {
+  const pending = () => useSessionStore.getState().pendingSession;
+
+  it("holds a signed-up session without going signed-in", async () => {
+    // The whole reason this exists: §2's gate unmounts `(auth)` the moment a
+    // session exists, so the setup screen could not run if sign-up adopted.
+    useSessionStore.getState().beginOnboarding(SESSION);
+    expect(pending()).toBe(SESSION);
+    expect(session().status).toBe("hydrating");
+    expect(storage.saveSession).not.toHaveBeenCalled();
+    expect(api.setAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("adopts the held session when onboarding finishes", async () => {
+    useSessionStore.getState().beginOnboarding(SESSION);
+    await useSessionStore.getState().completeOnboarding();
+
+    expect(session()).toEqual({ status: "signed-in", user: USER });
+    expect(storage.saveSession).toHaveBeenCalledWith(SESSION);
+    expect(pending()).toBeNull();
+  });
+
+  it("does nothing when there is nothing held", async () => {
+    await useSessionStore.getState().completeOnboarding();
+    expect(session().status).toBe("hydrating");
+    expect(storage.saveSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps holding it when the keychain refuses", async () => {
+    // Same rule as `adopt`: a session that did not persist must not be
+    // announced. Here that also means onboarding is still resumable.
+    storage.saveSession.mockRejectedValue(new Error("keychain unavailable"));
+    useSessionStore.getState().beginOnboarding(SESSION);
+
+    await expect(useSessionStore.getState().completeOnboarding()).rejects.toThrow();
+    expect(session().status).toBe("hydrating");
+    expect(pending()).toBe(SESSION);
+  });
+
+  it("drops a half-finished sign-up on sign-out", async () => {
+    useSessionStore.getState().beginOnboarding(SESSION);
+    await useSessionStore.getState().forget();
+    expect(pending()).toBeNull();
   });
 });

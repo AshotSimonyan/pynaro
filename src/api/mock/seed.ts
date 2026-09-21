@@ -5,6 +5,7 @@
  * The prototype quotes money in dollars (`serviceCallFee: 75`) because its API
  * divides its own cents by 100 on the way out. These are the cents.
  */
+import type { SocialProvider } from "../contract";
 import type {
   Business,
   Category,
@@ -25,7 +26,8 @@ export const SEED_CUSTOMER = {
 } as const;
 
 /**
- * The two accounts a developer can sign in as.
+ * The accounts the mock starts with. `signUp` appends to this list at runtime,
+ * which is why the store copies it rather than reading it in place.
  *
  * There is no role picker — §2 is explicit that the prototype's was a demo
  * control and does not ship — so the role has to arrive from the server, which
@@ -36,17 +38,27 @@ export const SEED_CUSTOMER = {
  * Marcus rather than any other technician: he is assigned `job-seed-en-route`,
  * so a technician session opens onto a job it can actually act on.
  */
-export type SeedAccount = {
+export type MockAccount = {
   email: string;
-  /** Plain text, on purpose. A mock that hashed would be pretending. */
-  password: string;
+  /**
+   * Plain text, on purpose. A mock that hashed would be pretending.
+   *
+   * Null for an account that only exists behind Apple or Google. Those have no
+   * password to get wrong, and `signIn` has to refuse them rather than compare
+   * against nothing — which is the same rule a real backend needs, and the
+   * reason this is nullable instead of an empty string.
+   */
+  password: string | null;
+  /** The provider `signInWithProvider` matches on. Null for an email account. */
+  provider: SocialProvider | null;
   user: SessionUser;
 };
 
-export const seedAccounts: readonly SeedAccount[] = [
+export const seedAccounts: readonly MockAccount[] = [
   {
     email: "arman@pynaro.test",
     password: "pynaro",
+    provider: null,
     user: {
       id: SEED_CUSTOMER.id,
       role: "customer",
@@ -59,6 +71,7 @@ export const seedAccounts: readonly SeedAccount[] = [
   {
     email: "marcus@andys.test",
     password: "pynaro",
+    provider: null,
     user: {
       id: "marcus",
       role: "technician",
@@ -66,6 +79,41 @@ export const seedAccounts: readonly SeedAccount[] = [
       email: "marcus@andys.test",
       phone: "(424) 888-1210",
       businessId: "andys",
+    },
+  },
+  /**
+   * One account per provider, so "Continue with Apple" produces a real session
+   * for a real identity rather than signing everyone in as Arman.
+   *
+   * Both are customers with no jobs, which is the state a genuinely new social
+   * sign-up lands in — and the empty-list state steps 8 and 11 have to render
+   * anyway. The Apple address is a private-relay one because that is what Apple
+   * actually returns when the user hides their email.
+   */
+  {
+    email: "x7k2p9@privaterelay.appleid.test",
+    password: null,
+    provider: "apple",
+    user: {
+      id: "apple-demo",
+      role: "customer",
+      name: "Alex Rivera",
+      email: "x7k2p9@privaterelay.appleid.test",
+      phone: "",
+      businessId: null,
+    },
+  },
+  {
+    email: "dana.k@pynaro.test",
+    password: null,
+    provider: "google",
+    user: {
+      id: "google-demo",
+      role: "customer",
+      name: "Dana Kim",
+      email: "dana.k@pynaro.test",
+      phone: "",
+      businessId: null,
     },
   },
 ];

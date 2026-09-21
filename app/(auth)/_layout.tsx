@@ -3,10 +3,10 @@ import { Redirect, Stack } from "expo-router";
 import { homeForRole, useSession } from "@/features/session";
 import { stackScreenOptions } from "@/theme";
 
-// Sign-in rather than welcome while welcome is still the step 1 placeholder:
-// an anchor is where back goes, and backing out to a dead-end screen is worse
-// than having no history at all. Step 7 moves this to "welcome".
-export const unstable_settings = { anchor: "sign-in" };
+// Where back goes from sign-in, sign-up and the setup screen. Welcome is the
+// root of this group's flow, so a deep link into any of the three still leaves
+// a way out rather than a stack with nothing under it.
+export const unstable_settings = { anchor: "welcome" };
 
 /**
  * The inverse gate: a signed-in user has no business on the sign-in screen, and

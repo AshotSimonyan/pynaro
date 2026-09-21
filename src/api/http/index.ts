@@ -19,6 +19,8 @@ function notImplemented(name: string): never {
 
 export const httpApi: Api = {
   signIn: () => notImplemented("signIn"),
+  signUp: () => notImplemented("signUp"),
+  signInWithProvider: () => notImplemented("signInWithProvider"),
   signOut: () => notImplemented("signOut"),
   getMe: () => notImplemented("getMe"),
   // Void rather than throwing: the session store calls this on every start,
